@@ -1,3 +1,8 @@
+# Get this repo
+```bash
+git clone https://github.com/sayjeyhi/calendar-app.git
+```
+
 # Build your Docker image
 ```bash
 docker build -t calendar-app .
