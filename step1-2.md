@@ -51,6 +51,7 @@ https://github.com/fail2ban/fail2ban
 ```bash
 # Install Fail2Ban
 sudo su -
+sudo apt update
 sudo apt install fail2ban
 ```
 Already prevents brute-force attacks on SSH by default, but we can customize it further.
