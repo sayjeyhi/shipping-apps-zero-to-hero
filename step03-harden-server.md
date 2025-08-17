@@ -1,7 +1,72 @@
+# Get and Secure Server
 
-# Secure Server
+## Add a New User
 
-## 1. Harden SSH
+If you want to set up a production ready Server, there are a few steps you should take.
+This document goes through the list of steps that I personally take.
+
+## 1. Create a New User with Sudo Permissions
+```bash
+# Log in as root
+ssh root@IP_ADDRESS
+
+# Create a new user
+adduser workshop
+
+# Add the user to the sudo group
+usermod -aG sudo workshop
+
+# Test the new user
+su - workshop
+sudo apt update
+```
+`-aG sudo` means:
+Append the user `workshop` to the sudo group without removing them from any other groups they already belong to.
+
+
+## 2. Set Up SSH Key Authentication
+
+#### LOCAL MACHINE:
+```bash
+# generate an SSH key pair if you don’t already have one
+ssh-keygen -t ed25519 -C "youremail@gmail.com" -f ~/.ssh/workshop_server_key
+
+# Copy the SSH key to the new user on the server
+ssh-copy-id -i ~/.ssh/workshop_server_key.pub workshop@IP_ADDRESS
+
+# Test key-based login
+ssh -i ~/.ssh/workshop_server_key workshop@IP_ADDRESS
+```
+
+After this we should be able to login without password requirement
+
+
+## Use SSH 
+SSH (Secure Shell) is a protocol for securely accessing remote computers. It encrypts the connection, ensuring that data transmitted over the network is secure.
+Instead of using passwords, we will use SSH keys for authentication, which is more secure.
+```bash
+# AUTOMATICALLY COPY SSH KEY TO SERVER
+# local machine (generate SSH key if you don't have one):
+ssh-keygen -t ed25519 -C "your-email@example.com"
+# Copy public key to server
+ssh-copy-id root@YOUR_SERVER_IP
+```
+
+```bash
+# OR MANUALLY
+# local machine:
+cat ~/.ssh/id_ed25519.pub
+# copy the output and paste it into the server
+mkdir -p ~/.ssh
+echo "your-public-key-here" >> ~/.ssh/authorized_keys
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
+```
+
+
+---
+
+## Harden SSH
 
 ```bash
 # Open SSH configuration file
@@ -18,7 +83,7 @@ DON`T CLOSE session, open another terminal, and test login:
 
 ```bash
 # Test SSH with new settings before logging out
-ssh -i ~/.ssh/test_server_key test@IP_ADDRESS
+ssh -i ~/.ssh/workshop_server_key workshop@IP_ADDRESS
 ```
 
 ## 4. Set Up a Firewall (UFW)
@@ -127,6 +192,14 @@ flowchart TD
     B -->|Response| A
 ```
 
-![Screenshot 2025-08-08 at 12.30.18.png](Screenshot%202025-08-08%20at%2012.30.18.png)
-
-
+### IPTables vs NFTables
+IPTables is a user-space utility program that allows a system administrator to configure the IP packet filter
+rules of the Linux kernel firewall, implemented as different Netfilter modules.
+NFTables is the successor to IPTables, providing a simpler and more consistent interface for managing firewall rules.
+It is recommended to use NFTables for new installations, but IPTables is still widely used.
+Most Linux distributions still use IPTables by default, but you can switch to NFTables if you prefer.
+You can check which one is in use by running:
+```bash
+sudo iptables -L
+sudo nft list ruleset
+```
