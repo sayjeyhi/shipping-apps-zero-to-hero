@@ -31,11 +31,10 @@ spec:
   issuerRef:
     name: letsencrypt-production
     kind: ClusterIssuer
-  commonName: domain.co
+  commonName: iwaskidding.com
   dnsNames:
-    - domain1.co
-    - domain2.co
-    
+    - iwaskidding.com
+    - sub.iwaskidding.com
 ```
 
 cluster-issuer.yaml
@@ -52,8 +51,8 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-production
     solvers:
-    - selector: {}
-      http01:
-        ingress:
-          class: traefik
+      - selector: {}
+        http01:
+          ingress:
+            class: traefik
 ```
