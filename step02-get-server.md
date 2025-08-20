@@ -1,7 +1,7 @@
-# Get and Secure Server
+# Secure Your Server
+We need to secure our server before we can deploy our application.
 
 ## Add a New User
-
 If you want to set up a production ready Server, there are a few steps you should take.
 This document goes through the list of steps that I personally take.
 
