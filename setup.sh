@@ -369,16 +369,55 @@ else
   success "k3s agent installed and running."
 fi
 
-# ── kubectl convenience for new user ─────────────────────────────────────────
-if [[ -n "$NEW_USER" ]]; then
-  USER_HOME=$(getent passwd "$NEW_USER" | cut -d: -f6)
-  mkdir -p "$USER_HOME/.kube"
-  if [[ -f /etc/rancher/k3s/k3s.yaml ]]; then
-    cp /etc/rancher/k3s/k3s.yaml "$USER_HOME/.kube/config"
+# =============================================================================
+#  STEP 9 – Generate kubeconfig with real server IP
+# =============================================================================
+section "Step 9 – kubeconfig with Public IP"
+
+if [[ "$K3S_ROLE" == "server" && -f /etc/rancher/k3s/k3s.yaml ]]; then
+
+  # Detect the public / primary non-loopback IP
+  SERVER_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}')
+
+  # Fallback: first non-loopback IP from hostname
+  if [[ -z "$SERVER_IP" || "$SERVER_IP" == "127."* ]]; then
+    SERVER_IP=$(hostname -I | awk '{print $1}')
+  fi
+
+  # Last resort: ask the user
+  if [[ -z "$SERVER_IP" || "$SERVER_IP" == "127."* ]]; then
+    warn "Could not auto-detect public IP."
+    read -rp "$(echo -e "${BOLD}Enter the server's public IP address${RESET}: ")" SERVER_IP
+  fi
+
+  info "Using server IP: $SERVER_IP"
+
+  KUBECONFIG_EXTERNAL="/etc/rancher/k3s/k3s-external.yaml"
+  sed "s|127.0.0.1|${SERVER_IP}|g" /etc/rancher/k3s/k3s.yaml > "$KUBECONFIG_EXTERNAL"
+  chmod 600 "$KUBECONFIG_EXTERNAL"
+  success "External kubeconfig written to: $KUBECONFIG_EXTERNAL"
+
+  # ── Copy to new user's ~/.kube/config ──────────────────────────────────────
+  if [[ -n "$NEW_USER" ]]; then
+    USER_HOME=$(getent passwd "$NEW_USER" | cut -d: -f6)
+    mkdir -p "$USER_HOME/.kube"
+    cp "$KUBECONFIG_EXTERNAL" "$USER_HOME/.kube/config"
     chown "$NEW_USER:$NEW_USER" "$USER_HOME/.kube/config"
     chmod 600 "$USER_HOME/.kube/config"
-    success "kubeconfig copied to $USER_HOME/.kube/config"
+    success "kubeconfig (with public IP) copied to $USER_HOME/.kube/config"
   fi
+
+  # ── Also copy to root's ~/.kube/config ─────────────────────────────────────
+  mkdir -p /root/.kube
+  cp "$KUBECONFIG_EXTERNAL" /root/.kube/config
+  chmod 600 /root/.kube/config
+  success "kubeconfig (with public IP) copied to /root/.kube/config"
+
+  echo
+  info "To use this config from your LOCAL machine, copy it with:"
+  echo -e "  ${CYAN}scp -P $SSH_PORT ${NEW_USER:-root}@${SERVER_IP}:${KUBECONFIG_EXTERNAL} ~/.kube/config${RESET}"
+  echo
+  info "Then verify with:  kubectl get nodes"
 fi
 
 # =============================================================================
@@ -395,6 +434,8 @@ echo "  ✔  Fail2Ban configured"
 echo "  ✔  Automatic security updates enabled"
 echo "  ✔  Kernel hardening applied"
 echo "  ✔  k3s installed (role: $K3S_ROLE)"
+[[ "$K3S_ROLE" == "server" ]] && \
+echo "  ✔  kubeconfig with public IP: /etc/rancher/k3s/k3s-external.yaml"
 echo -e "${RESET}"
 
 warn "⚠  IMPORTANT: Your SSH port is now ${BOLD}$SSH_PORT${RESET}${YELLOW}."
