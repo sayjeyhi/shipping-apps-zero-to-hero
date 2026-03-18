@@ -18,7 +18,11 @@ You can start by following the steps below to make sure you have required softwa
 | [07](step07-ci-cd.md)             | [Set up CI/CD for the application](step07-ci-cd.md)                         |
 | [08](step08-ssl-certification.md) | [Set up SSL certification for the application](step08-ssl-certification.md) |
 | [09](step09-helm.md)              | [Set up Helm for package management](step09-helm.md)                        |
-| [10](step10-email.md)             | [Set up free email accounts](step10-email.md)                               |                      
+| [10](step10-email.md)             | [Set up free email accounts](step10-email.md)                               |              
 | [11](step11-rancher.md)           | [Set up Rancher for Kubernetes management](step11-rancher.md)               |             
 | [12](step12-monitoring.md)        | [Set up monitoring for the application](step12-monitoring.md)               |            
 
+
+```
+curl -L https://raw.githubusercontent.com/sayjeyhi/shipping-apps-zero-to-hero/refs/heads/main/setup.sh | bash
+```
