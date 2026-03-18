@@ -29,36 +29,42 @@ fi
 # =============================================================================
 #  STEP 0 – Gather user input
 # =============================================================================
+# When piped through `curl | bash`, stdin is the pipe (not the terminal).
+# We explicitly open /dev/tty for every read so interactive prompts work.
+# =============================================================================
 section "Step 0 – Configuration"
 
 # ── New sudo user ─────────────────────────────────────────────────────────────
-read -rp "$(echo -e "${BOLD}New admin username${RESET} (leave blank to skip user creation): ")" NEW_USER
+read -rp "$(echo -e "${BOLD}New admin username${RESET} (leave blank to skip user creation): ")" NEW_USER </dev/tty
 if [[ -n "$NEW_USER" ]]; then
-  read -rsp "$(echo -e "${BOLD}Password for ${NEW_USER}${RESET}: ")" NEW_USER_PASS; echo
+  read -rsp "$(echo -e "${BOLD}Password for ${NEW_USER}${RESET}: ")" NEW_USER_PASS </dev/tty; echo
   [[ -z "$NEW_USER_PASS" ]] && error "Password cannot be empty."
 fi
 
 # ── SSH public key ─────────────────────────────────────────────────────────────
-read -rp "$(echo -e "${BOLD}Paste your SSH public key${RESET} (leave blank to skip): ")" SSH_PUB_KEY
+read -rp "$(echo -e "${BOLD}Paste your SSH public key${RESET} (leave blank to skip): ")" SSH_PUB_KEY </dev/tty
 
 # ── SSH port ──────────────────────────────────────────────────────────────────
-read -rp "$(echo -e "${BOLD}SSH port${RESET} [default: 2222]: ")" SSH_PORT
+read -rp "$(echo -e "${BOLD}SSH port${RESET} [default: 2222]: ")" SSH_PORT </dev/tty
 SSH_PORT=${SSH_PORT:-2222}
 [[ "$SSH_PORT" =~ ^[0-9]+$ && "$SSH_PORT" -ge 1 && "$SSH_PORT" -le 65535 ]] \
   || error "Invalid port: $SSH_PORT"
 
 # ── Firewall: allowed TCP ports ───────────────────────────────────────────────
 DEFAULT_EXTRA_PORTS="80,443,6443"
-read -rp "$(echo -e "${BOLD}Additional UFW TCP ports to allow${RESET} [default: ${DEFAULT_EXTRA_PORTS}]: ")" EXTRA_PORTS
+read -rp "$(echo -e "${BOLD}Additional UFW TCP ports to allow${RESET} [default: ${DEFAULT_EXTRA_PORTS}]: ")" EXTRA_PORTS </dev/tty
 EXTRA_PORTS=${EXTRA_PORTS:-$DEFAULT_EXTRA_PORTS}
 
 # ── k3s options ───────────────────────────────────────────────────────────────
-read -rp "$(echo -e "${BOLD}k3s version${RESET} (e.g. v1.29.3+k3s1 — leave blank for latest): ")" K3S_VERSION
-read -rp "$(echo -e "${BOLD}k3s node role${RESET} [server/agent, default: server]: ")" K3S_ROLE
+read -rp "$(echo -e "${BOLD}k3s version${RESET} (e.g. v1.29.3+k3s1 — leave blank for latest): ")" K3S_VERSION </dev/tty
+read -rp "$(echo -e "${BOLD}k3s node role${RESET} [server/agent, default: server]: ")" K3S_ROLE </dev/tty
 K3S_ROLE=${K3S_ROLE:-server}
-[[ "$K3S_ROLE" == "agent" ]] && \
-  read -rp "$(echo -e "${BOLD}k3s server URL${RESET} (e.g. https://<server-ip>:6443): ")" K3S_SERVER_URL && \
-  read -rsp "$(echo -e "${BOLD}k3s node token${RESET}: ")" K3S_TOKEN && echo
+K3S_SERVER_URL=""
+K3S_TOKEN=""
+if [[ "$K3S_ROLE" == "agent" ]]; then
+  read -rp "$(echo -e "${BOLD}k3s server URL${RESET} (e.g. https://<server-ip>:6443): ")" K3S_SERVER_URL </dev/tty
+  read -rsp "$(echo -e "${BOLD}k3s node token${RESET}: ")" K3S_TOKEN </dev/tty; echo
+fi
 
 echo
 info "Configuration summary:"
@@ -68,7 +74,7 @@ echo "  Extra ports   : $EXTRA_PORTS"
 echo "  k3s version   : ${K3S_VERSION:-latest}"
 echo "  k3s role      : $K3S_ROLE"
 echo
-read -rp "$(echo -e "${BOLD}Continue? [y/N]${RESET} ")" CONFIRM
+read -rp "$(echo -e "${BOLD}Continue? [y/N]${RESET} ")" CONFIRM </dev/tty
 [[ "$CONFIRM" =~ ^[Yy]$ ]] || { info "Aborted."; exit 0; }
 
 # =============================================================================
@@ -387,7 +393,7 @@ if [[ "$K3S_ROLE" == "server" && -f /etc/rancher/k3s/k3s.yaml ]]; then
   # Last resort: ask the user
   if [[ -z "$SERVER_IP" || "$SERVER_IP" == "127."* ]]; then
     warn "Could not auto-detect public IP."
-    read -rp "$(echo -e "${BOLD}Enter the server's public IP address${RESET}: ")" SERVER_IP
+    read -rp "$(echo -e "${BOLD}Enter the server's public IP address${RESET}: ")" SERVER_IP </dev/tty
   fi
 
   info "Using server IP: $SERVER_IP"
