@@ -26,3 +26,49 @@ You can start by following the steps below to make sure you have required softwa
 ```
 curl -L https://raw.githubusercontent.com/sayjeyhi/shipping-apps-zero-to-hero/refs/heads/main/setup.sh | bash
 ```
+
+```
+kubectl create serviceaccount github-deployer -n default
+
+kubectl create clusterrolebinding github-deployer-binding \
+  --clusterrole=cluster-admin \
+  --serviceaccount=default:github-deployer
+
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-deployer-token
+  namespace: default
+  annotations:
+    kubernetes.io/service-account.name: github-deployer
+type: kubernetes.io/service-account-token
+EOF
+
+TOKEN=$(kubectl get secret github-deployer-token -n default -o jsonpath='{.data.token}' | base64 -d)
+CA=$(kubectl get secret github-deployer-token -n default -o jsonpath='{.data.ca\.crt}')
+SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+
+cat <<EOF > github-kubeconfig.yaml
+apiVersion: v1
+kind: Config
+clusters:
+- name: cluster
+  cluster:
+    server: ${SERVER}
+    certificate-authority-data: ${CA}
+contexts:
+- name: github
+  context:
+    cluster: cluster
+    user: github-deployer
+    namespace: default
+current-context: github
+users:
+- name: github-deployer
+  user:
+    token: ${TOKEN}
+EOF
+
+cat github-kubeconfig.yaml
+```
