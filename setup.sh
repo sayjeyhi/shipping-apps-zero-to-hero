@@ -426,6 +426,107 @@ if [[ "$K3S_ROLE" == "server" && -f /etc/rancher/k3s/k3s.yaml ]]; then
   info "Then verify with:  kubectl get nodes"
 fi
 
+
+# =============================================================================
+#  STEP 10 – GitHub Deployer Service Account & kubeconfig
+# =============================================================================
+section "Step 10 – GitHub Deployer Service Account"
+
+if [[ "$K3S_ROLE" == "server" ]]; then
+
+  DEPLOYER_DIR="deployer-config"
+  DEPLOYER_SA="github-deployer"
+  DEPLOYER_SECRET="github-deployer-token"
+  DEPLOYER_KUBECONFIG="${DEPLOYER_DIR}/github-kubeconfig.yaml"
+
+  mkdir -p "$DEPLOYER_DIR"
+  info "Creating service account '${DEPLOYER_SA}'…"
+
+  # ── Service account ──────────────────────────────────────────────────────────
+  if kubectl get serviceaccount "$DEPLOYER_SA" -n default &>/dev/null; then
+    warn "Service account '${DEPLOYER_SA}' already exists — skipping creation."
+  else
+    kubectl create serviceaccount "$DEPLOYER_SA" -n default
+    success "Service account '${DEPLOYER_SA}' created."
+  fi
+
+  # ── ClusterRoleBinding ───────────────────────────────────────────────────────
+  BINDING_NAME="${DEPLOYER_SA}-binding"
+  if kubectl get clusterrolebinding "$BINDING_NAME" &>/dev/null; then
+    warn "ClusterRoleBinding '${BINDING_NAME}' already exists — skipping."
+  else
+    kubectl create clusterrolebinding "$BINDING_NAME" \
+      --clusterrole=cluster-admin \
+      --serviceaccount="default:${DEPLOYER_SA}"
+    success "ClusterRoleBinding '${BINDING_NAME}' created."
+  fi
+
+  # ── Long-lived token secret ──────────────────────────────────────────────────
+  info "Creating long-lived token secret '${DEPLOYER_SECRET}'…"
+  kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${DEPLOYER_SECRET}
+  namespace: default
+  annotations:
+    kubernetes.io/service-account.name: ${DEPLOYER_SA}
+type: kubernetes.io/service-account-token
+EOF
+
+  # Wait until the token is populated by the controller
+  info "Waiting for token to be issued…"
+  for i in {1..15}; do
+    TOKEN_DATA=$(kubectl get secret "$DEPLOYER_SECRET" -n default \
+      -o jsonpath='{.data.token}' 2>/dev/null)
+    [[ -n "$TOKEN_DATA" ]] && break
+    sleep 2
+  done
+  [[ -z "$TOKEN_DATA" ]] && error "Timed out waiting for service account token."
+
+  # ── Extract credentials ──────────────────────────────────────────────────────
+  TOKEN=$(echo "$TOKEN_DATA" | base64 -d)
+  CA=$(kubectl get secret "$DEPLOYER_SECRET" -n default \
+    -o jsonpath='{.data.ca\.crt}')
+  SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+
+  # ── Write kubeconfig ─────────────────────────────────────────────────────────
+  info "Writing kubeconfig to ${DEPLOYER_KUBECONFIG}…"
+  cat > "$DEPLOYER_KUBECONFIG" <<EOF
+apiVersion: v1
+kind: Config
+clusters:
+- name: cluster
+  cluster:
+    server: ${SERVER}
+    certificate-authority-data: ${CA}
+contexts:
+- name: github
+  context:
+    cluster: cluster
+    user: ${DEPLOYER_SA}
+    namespace: default
+current-context: github
+users:
+- name: ${DEPLOYER_SA}
+  user:
+    token: ${TOKEN}
+EOF
+
+  chmod 600 "$DEPLOYER_KUBECONFIG"
+  success "GitHub deployer kubeconfig written to: ${DEPLOYER_KUBECONFIG}"
+
+  echo
+  info "Add this kubeconfig as a GitHub Actions secret (e.g. KUBE_CONFIG):"
+  echo -e "  ${CYAN}cat ${DEPLOYER_KUBECONFIG}${RESET}"
+  echo
+  info "To copy it to your local machine:"
+  echo -e "  ${CYAN}scp -P $SSH_PORT ${NEW_USER:-root}@${SERVER_IP}:$(pwd)/${DEPLOYER_KUBECONFIG} ~/github-kubeconfig.yaml${RESET}"
+
+else
+  warn "Skipping GitHub deployer setup — this node is an agent, not a server."
+fi
+
 # =============================================================================
 #  DONE
 # =============================================================================
